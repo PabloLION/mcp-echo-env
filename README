@@ -1,0 +1,205 @@
+# mcp-echo-env
+
+A minimal MCP server that echoes the environment variables it can access. It is
+intended as a proof-of-concept showing that an MCP client can pass identifiers
+such as `PWD` or `WORKSPACE_SLUG` to a server and have them reflected back.
+
+## Prerequisites
+
+- Node.js 18+
+- [pnpm](https://pnpm.io/) for dependency management
+
+## Installation
+
+```bash
+pnpm install
+```
+
+## Running the server
+
+```bash
+mcp-server-echo-env
+```
+
+Run the command from the workspace root whose environment you want to inspect.
+The process listens on stdio for MCP traffic. A Codex CLI session can connect
+with:
+
+```bash
+codex exec -c mcp_servers='["mcp-echo-env"]' -- tool call env_echo
+```
+
+You should see the server log:
+
+```text
+[mcp-echo-env] MCP server ready – awaiting client requests on stdio.
+```
+
+## Workspace .env files
+
+On startup the server loads environment variables from a `.env` file in the
+current working directory (if present) and otherwise derives sensible defaults.
+In particular, when `WORKSPACE_SLUG` is not already defined it automatically
+falls back to the basename of the workspace directory, and `PWD` defaults to the
+current working directory.
+
+Example `.env` placed at the workspace root:
+
+```env
+# .env
+WORKSPACE_SLUG=my-workspace
+PWD=/custom/path/override
+```
+
+Values exported in the real environment still take precedence, so you can
+override per run via `WORKSPACE_SLUG=demo pnpm start` when needed.
+
+## Available tool
+
+### `env_echo`
+
+Echo environment variables back to the caller.
+
+- **Default behaviour:** returns `PWD` and `WORKSPACE_SLUG`.
+- **Arguments:**
+  - `keys` (string[]): list of variable names to read. When omitted, the
+    defaults are used.
+  - `omitNull` (boolean): drop variables that are unset instead of outputting
+    `null`.
+
+The tool responds with both a formatted text block and structured JSON:
+
+```json
+{
+  "tool": "env_echo",
+  "variables": {
+    "PWD": "/Users/me/projects/demo",
+    "WORKSPACE_SLUG": "my-demo-workspace"
+  },
+  "workspace_slug": "my-demo-workspace",
+  "pwd": "/Users/me/projects/demo"
+}
+```
+
+The `variables` map mirrors exactly what was requested, while the lowercase
+aliases (`workspace_slug`, `pwd`) make the commonly inspected values easy to
+read.
+
+## MCP client capability check
+
+Use this server as a quick sanity test to confirm that an MCP client or agent
+forwards environment variables:
+
+1. Launch `mcp-server-echo-env` from the workspace you want the client to
+   inspect. For ad-hoc checks you can run `pnpm dlx mcp-server-echo-env`, or
+   `npx mcp-server-echo-env` once the package is published to npm.
+2. Connect your MCP client to the running server (see the Codex CLI instructions
+   below for one example).
+3. Invoke the `env_echo` tool and ensure the reported `PWD` and `WORKSPACE_SLUG`
+   values match the workspace where you started the server. A mismatch indicates
+   the client is not relaying the expected environment context.
+
+### Example trigger sequence
+
+1. In one terminal, start the server from the target workspace:
+
+   ```bash
+   WORKSPACE_SLUG=demo mcp-server-echo-env
+   ```
+
+   Leave this running; it prints a single readiness message and then waits for
+   requests.
+
+2. In a second terminal, ask Codex CLI (or another MCP client) to call the
+   tool. For Codex CLI, run:
+
+   ```bash
+   codex -c mcp_servers='["mcp-echo-env"]' \
+     --prompt 'Call env_echo with the default arguments and show the JSON response.'
+   ```
+
+   The assistant response should include the JSON payload emitted by
+   `env_echo`, confirming the client relayed `PWD` and `WORKSPACE_SLUG`.
+
+3. When finished, stop the server with `Ctrl+C` in the first terminal.
+
+## Codex CLI example
+
+There are two ways to make the server available to Codex CLI.
+
+### Option 1: CLI registration
+
+```bash
+codex mcp add mcp-echo-env mcp-server-echo-env
+```
+
+Ensure `mcp-server-echo-env` is discoverable on your `$PATH` (see “Distribution /
+installation” below). Then either start a new Codex session or make a direct
+tool call:
+
+```bash
+# Launch an interactive session with the server available
+codex -c mcp_servers='["mcp-echo-env"]'
+
+# Or call the tool non-interactively
+codex exec -c mcp_servers='["mcp-echo-env"]' \
+  -- tool call env_echo --args '{"keys":["PWD","WORKSPACE_SLUG","HOME"]}'
+```
+
+Codex CLI prints the formatted text response by default; add `--json` to the
+`codex exec` command if you prefer the raw structured payload. When you are done
+testing, remove the server registration with `codex mcp remove mcp-echo-env`.
+Pair it with other servers (for example the Jina web search MCP) by extending
+the list: `codex -c mcp_servers='["mcp-echo-env","jina"]'`.
+
+### Option 2: Manual config entry
+
+Edit `~/.codex/config.toml` and add:
+
+```toml
+[mcp_servers.mcp-echo-env]
+command = "mcp-server-echo-env"
+```
+
+You can then launch Codex with the same `mcp_servers` override shown above, or
+make `mcp-echo-env` part of a profile in the TOML file. Add an optional
+`[mcp_servers.mcp-echo-env.env]` section only if you want to enforce a global
+override; otherwise the server will infer `WORKSPACE_SLUG` from the active
+workspace.
+
+## Distribution / installation
+
+The package exposes a CLI binary named `mcp-server-echo-env`. To make it
+available system-wide:
+
+```bash
+# From the project root
+pnpm install --global .
+
+# Verify that the binary is on your PATH
+which mcp-server-echo-env
+```
+
+For ephemeral runs without installation you can execute
+`pnpm dlx mcp-server-echo-env` from any workspace. After this package is
+published you will be able to run `npx mcp-server-echo-env` for the same effect.
+As an alternative, invoke the script directly with `node path/to/index.js`.
+
+## Quick verification (no MCP client)
+
+You can exercise the core logic directly:
+
+```bash
+WORKSPACE_SLUG=demo node --input-type=module <<'NODE'
+import { collectEnvironmentVariables } from './index.js';
+console.log(
+  JSON.stringify(
+    collectEnvironmentVariables(['PWD', 'WORKSPACE_SLUG']),
+    null,
+    2
+  )
+);
+NODE
+```
+
+This prints the selected variables exactly as the MCP tool would expose them.
