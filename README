@@ -1,39 +1,13 @@
 # mcp-echo-env
 
-A minimal MCP server that echoes the environment variables it can access. It is
-intended as a proof-of-concept showing that an MCP client can pass identifiers
-such as `PWD` or `WORKSPACE_SLUG` to a server and have them reflected back.
+This repository provides an MCP server that simply echoes selected environment
+variables. It exists to verify that an MCP client propagates workspace context
+(`PWD`, `WORKSPACE_SLUG`, and any additional keys you request) into the server
+process.
 
-## Prerequisites
-
-- Node.js 18+
-- [pnpm](https://pnpm.io/) for dependency management
-
-## Installation
-
-```bash
-pnpm install
-```
-
-## Running the server
-
-```bash
-mcp-server-echo-env
-```
-
-Run the command from the workspace root whose environment you want to inspect.
-The process listens on stdio for MCP traffic. A Codex CLI session can connect
-with:
-
-```bash
-codex exec -c mcp_servers='["mcp-echo-env"]' -- tool call env_echo
-```
-
-You should see the server log:
-
-```text
-[mcp-echo-env] MCP server ready – awaiting client requests on stdio.
-```
+For installation, local development, and distribution details see
+[`instructions.md`](instructions.md). The remainder of this README focuses on
+how to exercise the server when testing an MCP client or agent.
 
 ## Workspace .env files
 
@@ -159,40 +133,3 @@ make `mcp-echo-env` part of a profile in the TOML file. Add an optional
 `[mcp_servers.mcp-echo-env.env]` section only if you want to enforce a global
 override; otherwise the server will infer `WORKSPACE_SLUG` from the active
 workspace.
-
-## Distribution / installation
-
-The package exposes a CLI binary named `mcp-server-echo-env`. To make it
-available system-wide:
-
-```bash
-# From the project root
-pnpm install --global .
-
-# Verify that the binary is on your PATH
-which mcp-server-echo-env
-```
-
-For ephemeral runs without installation you can execute
-`pnpm dlx mcp-server-echo-env` from any workspace. After this package is
-published you will be able to run `npx mcp-server-echo-env` for the same effect.
-As an alternative, invoke the script directly with `node path/to/index.js`.
-
-## Quick verification (no MCP client)
-
-You can exercise the core logic directly:
-
-```bash
-WORKSPACE_SLUG=demo node --input-type=module <<'NODE'
-import { collectEnvironmentVariables } from './index.js';
-console.log(
-  JSON.stringify(
-    collectEnvironmentVariables(['PWD', 'WORKSPACE_SLUG']),
-    null,
-    2
-  )
-);
-NODE
-```
-
-This prints the selected variables exactly as the MCP tool would expose them.
