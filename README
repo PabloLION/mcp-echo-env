@@ -3,7 +3,9 @@
 This repository provides an MCP server that simply echoes selected environment
 variables. It exists to verify that an MCP client propagates workspace context
 (`PWD`, `WORKSPACE_SLUG`, and any additional keys you request) into the server
-process.
+process. The canonical distribution is the published npm package
+[`mcp-server-echo-env`](https://www.npmjs.com/package/mcp-server-echo-env), and
+that page should be treated as the project homepage for end users.
 
 For installation, local development, and distribution details see
 [`instructions.md`](instructions.md). The remainder of this README focuses on
@@ -65,8 +67,8 @@ Use this server as a quick sanity test to confirm that an MCP client or agent
 forwards environment variables:
 
 1. Launch `mcp-server-echo-env` from the workspace you want the client to
-   inspect. For ad-hoc checks you can run `pnpm dlx mcp-server-echo-env`, or
-   `npx mcp-server-echo-env` once the package is published to npm.
+   inspect. For ad-hoc checks you can run `npx mcp-server-echo-env` (requires no
+   prior installation) or `pnpm dlx mcp-server-echo-env`.
 2. Connect your MCP client to the running server (see the Codex CLI instructions
    below for one example).
 3. Invoke the `env_echo` tool and ensure the reported `PWD` and `WORKSPACE_SLUG`
@@ -133,3 +135,5 @@ make `mcp-echo-env` part of a profile in the TOML file. Add an optional
 `[mcp_servers.mcp-echo-env.env]` section only if you want to enforce a global
 override; otherwise the server will infer `WORKSPACE_SLUG` from the active
 workspace.
+The server requires no authorization or credentials—the goal is simply to
+reflect whatever environment variables the client provides.
