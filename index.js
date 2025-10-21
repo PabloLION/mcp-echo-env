@@ -10,24 +10,31 @@ import { z } from "zod";
 
 const DEFAULT_KEYS = ["PWD", "WORKSPACE_SLUG"];
 
-export const inputSchema = {
-  keys: z
-    .array(
-      z
-        .string()
-        .min(1, "Environment variable names must be at least one character.")
-        .describe("Name of an environment variable to echo.")
-    )
-    .nonempty()
-    .optional()
-    .describe(
-      "List of environment variables to read. Defaults to PWD and WORKSPACE_SLUG."
-    ),
-  omitNull: z
-    .boolean()
-    .optional()
-    .describe("When true, variables with no value are excluded from the result."),
-};
+export const inputSchema = z
+  .object({
+    keys: z
+      .array(
+        z
+          .string()
+          .min(
+            1,
+            "Environment variable names must be at least one character."
+          )
+          .describe("Name of an environment variable to echo.")
+      )
+      .nonempty()
+      .optional()
+      .describe(
+        "List of environment variables to read. Defaults to PWD and WORKSPACE_SLUG."
+      ),
+    omitNull: z
+      .boolean()
+      .optional()
+      .describe(
+        "When true, variables with no value are excluded from the result."
+      ),
+  })
+  .partial();
 
 export const outputSchema = {
   tool: z.literal("env_echo"),
@@ -105,10 +112,34 @@ server.registerTool(
     title: "Environment Variable Echo",
     description:
       "Return the values of requested environment variables from the MCP server process.",
-    inputSchema,
-    outputSchema,
   },
-  async ({ keys, omitNull = false }) => {
+  async (maybeArgs, maybeExtra) => {
+    let args = maybeArgs;
+    let extra = maybeExtra;
+    if (extra === undefined) {
+      extra = args;
+      args = undefined;
+    }
+    const payload = args ?? {};
+    const parseResult = inputSchema.safeParse(payload);
+    if (!parseResult.success) {
+      console.error("[mcp-echo-env] Invalid arguments:", parseResult.error);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Invalid arguments: ${parseResult.error.message}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+    const { keys, omitNull = false } = parseResult.data;
+    console.error("[mcp-echo-env] env_echo invoked with args:", {
+      keys,
+      omitNull,
+      sessionId: extra?.sessionId,
+    });
     const keysToUse = keys && keys.length > 0 ? keys : DEFAULT_KEYS;
     const omitNulls = Boolean(omitNull);
     const variables = collectEnvironmentVariables(keysToUse, {
@@ -127,6 +158,7 @@ server.registerTool(
       null,
       2
     );
+    console.error("[mcp-echo-env] env_echo returning payload.");
     return {
       content: [
         {
@@ -145,20 +177,22 @@ export async function startServer() {
   console.error(
     "[mcp-echo-env] MCP server ready – awaiting client requests on stdio."
   );
-  process.stdin.resume();
-
-  await new Promise((resolve) => {
-    const shutdown = () => resolve();
-    transport.onclose = shutdown;
-    transport.onerror = (error) => {
-      console.error("[mcp-echo-env] Transport error:", error);
-      shutdown();
-    };
-    process.once("SIGINT", shutdown);
-    process.once("SIGTERM", shutdown);
-  });
-
-  await server.close();
+  const shutdown = async () => {
+    console.error("[mcp-echo-env] Shutting down.");
+    await server.close();
+    process.exit(0);
+  };
+  transport.onerror = (error) => {
+    console.error("[mcp-echo-env] Transport error:", error);
+    shutdown().catch((err) => {
+      console.error("[mcp-echo-env] Error during shutdown:", err);
+      process.exit(1);
+    });
+  };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
+  // Keep the event loop active until a signal arrives.
+  await new Promise(() => {});
 }
 
 const isExecutedDirectly = (() => {

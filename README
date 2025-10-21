@@ -114,12 +114,12 @@ forwards environment variables:
    tool. For Codex CLI, run:
 
    ```bash
-   codex -c mcp_servers='["mcp-echo-env"]' \
-     --prompt 'Call env_echo with the default arguments and show the JSON response.'
+   codex 'Call env_echo with the default arguments and show the JSON response.'
    ```
 
-   The assistant response should include the JSON payload emitted by
-   `env_echo`, confirming the client relayed `PWD` and `WORKSPACE_SLUG`.
+   Ensure you previously registered the server with `codex mcp add`; Codex will
+   launch `mcp-server-echo-env`, call the tool, and include the JSON payload in
+   its response, confirming the client relayed `PWD` and `WORKSPACE_SLUG`.
 
 3. When finished, stop the server with `Ctrl+C` in the first terminal.
 
@@ -134,23 +134,16 @@ codex mcp add mcp-echo-env mcp-server-echo-env
 ```
 
 Ensure `mcp-server-echo-env` is discoverable on your `$PATH` (see “Distribution /
-installation” below). Then either start a new Codex session or make a direct
-tool call:
+installation” below). After registering, launch Codex with your desired prompt:
 
 ```bash
-# Launch an interactive session with the server available
-codex -c mcp_servers='["mcp-echo-env"]'
-
-# Or call the tool non-interactively
-codex exec -c mcp_servers='["mcp-echo-env"]' \
-  -- tool call env_echo --args '{"keys":["PWD","WORKSPACE_SLUG","HOME"]}'
+codex 'Call env_echo with the default arguments and show the JSON response.'
 ```
 
-Codex CLI prints the formatted text response by default; add `--json` to the
-`codex exec` command if you prefer the raw structured payload. When you are done
-testing, remove the server registration with `codex mcp remove mcp-echo-env`.
-Pair it with other servers (for example the Jina web search MCP) by extending
-the list: `codex -c mcp_servers='["mcp-echo-env","jina"]'`.
+Codex will spawn the server automatically, stream the tool output, and include
+the JSON payload in its reply. When you are done testing, remove the server
+registration with `codex mcp remove mcp-echo-env`. Pair it with other servers
+(for example the Jina web search MCP) through additional `codex mcp add` calls.
 
 ### Option 2: Manual config entry
 
