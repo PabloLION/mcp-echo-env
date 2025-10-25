@@ -30,6 +30,26 @@ PWD=/custom/path/override
 Values exported in the real environment still take precedence, so you can
 override per run via `WORKSPACE_SLUG=demo pnpm start` when needed.
 
+For mono-repos with multiple workspaces, place a dedicated `.env` file in each
+workspace root and launch `mcp-server-echo-env` from inside that directory. The
+server recomputes both `PWD` and `WORKSPACE_SLUG` on every start, so simply
+changing directories and re-running the binary is enough to validate how an MCP
+client handles workspace-specific variables. You can also override per run
+without editing files by supplying inline exports:
+`WORKSPACE_SLUG=staging PWD=/path/to/workspace mcp-server-echo-env`.
+
+## Logging controls
+
+Set `MCP_ECHO_ENV_LOG_LEVEL` to adjust how verbose the server is on stderr:
+
+- `silent` – suppress all log output.
+- `error` – only report failures (recommended for scripted smoke tests).
+- `info` (default) – emit lifecycle messages such as readiness and shutdown.
+- `debug` – include argument payloads and structured responses.
+
+All logs stay on stderr so they never interfere with the JSON content returned
+to clients on stdout.
+
 ## Available tool
 
 ### `env_echo`
@@ -137,3 +157,71 @@ override; otherwise the server will infer `WORKSPACE_SLUG` from the active
 workspace.
 The server requires no authorization or credentials—the goal is simply to
 reflect whatever environment variables the client provides.
+
+## Other MCP clients
+
+The same `mcp-echo-env` binary works with any MCP client that supports stdio
+servers. Below are sample configurations for two popular options.
+
+### Playwright MCP runner
+
+Install the Playwright MCP package and register `mcp-echo-env` alongside it:
+
+```bash
+pnpm dlx @playwright/mcp@latest --version
+```
+
+Add the server to the JSON config Playwright recommends (usually
+`~/.config/mcp/clients/playwright.json`):
+
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    },
+    "mcp-echo-env": {
+      "command": "mcp-server-echo-env"
+    }
+  }
+}
+```
+
+Restart the Playwright MCP runner and run a quick tool call (for example):
+
+```bash
+playwright mcp call mcp-echo-env env_echo
+```
+
+The JSON payload printed by Playwright should mirror the workspace where you
+started the runner.
+
+### Jina MCP tools
+
+The `jina-mcp-tools` package exposes web search and reader capabilities. Add the
+echo server next to it in the shared MCP configuration (for example
+`~/.config/mcp/clients/jina.json`):
+
+```json
+{
+  "mcpServers": {
+    "jina-mcp-tools": {
+      "command": "npx",
+      "args": ["jina-mcp-tools"]
+    },
+    "mcp-echo-env": {
+      "command": "mcp-server-echo-env"
+    }
+  }
+}
+```
+
+You can now ask Jina’s client to verify context transfer (for example):
+
+```bash
+gina mcp call mcp-echo-env env_echo
+```
+
+If the response lists the expected `PWD` and `WORKSPACE_SLUG`, the client is
+correctly forwarding environment variables to the server.

@@ -60,5 +60,23 @@ NODE
 
 This prints the selected variables exactly as the MCP tool would expose them.
 
+## Quality gates
+
+The repository ships a single `pnpm check` command that runs ESLint,
+markdownlint, and the smoke test together:
+
+```bash
+pnpm check
+```
+
+The GitHub Actions workflow mirrors this command so CI stays aligned with local
+verification.
+
+## Controlling log noise
+
+Set `MCP_ECHO_ENV_LOG_LEVEL` to `error` when running automated tests or CI
+checks so only failures are emitted on stderr. Use `debug` locally if you need
+to inspect the arguments and payloads the server exchanges with clients.
+
 Refer back to `README.md` for the purpose of this repository and user-facing
 usage examples.

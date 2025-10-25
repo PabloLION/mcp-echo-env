@@ -2,46 +2,84 @@
 
 import process from "node:process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { resolve, join, basename } from "node:path";
+import { join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
 const DEFAULT_KEYS = ["PWD", "WORKSPACE_SLUG"];
+const LOG_LEVELS = {
+  silent: 0,
+  error: 1,
+  info: 2,
+  debug: 3,
+};
 
-export const inputSchema = z
-  .object({
-    keys: z
-      .array(
-        z
-          .string()
-          .min(
-            1,
-            "Environment variable names must be at least one character."
-          )
-          .describe("Name of an environment variable to echo.")
-      )
-      .nonempty()
-      .optional()
-      .describe(
-        "List of environment variables to read. Defaults to PWD and WORKSPACE_SLUG."
-      ),
-    omitNull: z
-      .boolean()
-      .optional()
-      .describe(
-        "When true, variables with no value are excluded from the result."
-      ),
-  })
-  .partial();
+function resolveLogLevel(value) {
+  const normalized = (value ?? "info").toLowerCase();
+  if (LOG_LEVELS[normalized] !== undefined) {
+    return normalized;
+  }
+  return "info";
+}
 
-export const outputSchema = {
+let activeLogLevel = resolveLogLevel(process.env.MCP_ECHO_ENV_LOG_LEVEL);
+
+function refreshLogLevel() {
+  activeLogLevel = resolveLogLevel(process.env.MCP_ECHO_ENV_LOG_LEVEL);
+}
+
+const inputShape = {
+  keys: z
+    .array(
+      z
+        .string()
+        .min(
+          1,
+          "Environment variable names must be at least one character."
+        )
+        .describe("Name of an environment variable to echo.")
+    )
+    .nonempty()
+    .describe(
+      "List of environment variables to read. Defaults to PWD and WORKSPACE_SLUG."
+    )
+    .optional(),
+  omitNull: z
+    .boolean()
+    .describe("When true, variables with no value are excluded from the result.")
+    .optional(),
+};
+
+const outputShape = {
   tool: z.literal("env_echo"),
   variables: z
-    .record(z.string().nullish())
+    .record(z.string(), z.union([z.string(), z.null()]))
     .describe("Key/value pairs for each echoed environment variable."),
 };
+
+const logger = {
+  info: (...args) => {
+    if (LOG_LEVELS[activeLogLevel] >= LOG_LEVELS.info) {
+      console.error("[mcp-echo-env]", ...args);
+    }
+  },
+  error: (...args) => {
+    if (LOG_LEVELS[activeLogLevel] >= LOG_LEVELS.error) {
+      console.error("[mcp-echo-env]", ...args);
+    }
+  },
+  debug: (...args) => {
+    if (LOG_LEVELS[activeLogLevel] >= LOG_LEVELS.debug) {
+      console.error("[mcp-echo-env]", ...args);
+    }
+  },
+};
+
+export const inputSchema = z.object(inputShape).strict();
+
+export const outputSchema = z.object(outputShape).strict();
 
 export function collectEnvironmentVariables(keys, { omitNull = false } = {}) {
   const uniqueKeys = Array.from(new Set(keys));
@@ -64,7 +102,7 @@ function loadWorkspaceEnvFile() {
   try {
     contents = readFileSync(envPath, "utf8");
   } catch (error) {
-    console.error(`[mcp-echo-env] Failed to read ${envPath}:`, error);
+    logger.error(`Failed to read ${envPath}:`, error);
     return;
   }
   for (const rawLine of contents.split(/\r?\n/)) {
@@ -86,6 +124,7 @@ function loadWorkspaceEnvFile() {
 }
 
 loadWorkspaceEnvFile();
+refreshLogLevel();
 
 if (process.env.WORKSPACE_SLUG === undefined) {
   process.env.WORKSPACE_SLUG = basename(process.cwd());
@@ -112,6 +151,8 @@ server.registerTool(
     title: "Environment Variable Echo",
     description:
       "Return the values of requested environment variables from the MCP server process.",
+    inputSchema: inputShape,
+    outputSchema: outputShape,
   },
   async (maybeArgs, maybeExtra) => {
     let args = maybeArgs;
@@ -123,7 +164,7 @@ server.registerTool(
     const payload = args ?? {};
     const parseResult = inputSchema.safeParse(payload);
     if (!parseResult.success) {
-      console.error("[mcp-echo-env] Invalid arguments:", parseResult.error);
+      logger.error("Invalid arguments:", parseResult.error);
       return {
         content: [
           {
@@ -135,7 +176,7 @@ server.registerTool(
       };
     }
     const { keys, omitNull = false } = parseResult.data;
-    console.error("[mcp-echo-env] env_echo invoked with args:", {
+    logger.debug("env_echo invoked with args:", {
       keys,
       omitNull,
       sessionId: extra?.sessionId,
@@ -158,7 +199,7 @@ server.registerTool(
       null,
       2
     );
-    console.error("[mcp-echo-env] env_echo returning payload.");
+    logger.debug("env_echo returning payload.");
     return {
       content: [
         {
@@ -174,18 +215,16 @@ server.registerTool(
 export async function startServer() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(
-    "[mcp-echo-env] MCP server ready – awaiting client requests on stdio."
-  );
+  logger.info("MCP server ready – awaiting client requests on stdio.");
   const shutdown = async () => {
-    console.error("[mcp-echo-env] Shutting down.");
+    logger.info("Shutting down.");
     await server.close();
     process.exit(0);
   };
   transport.onerror = (error) => {
-    console.error("[mcp-echo-env] Transport error:", error);
+    logger.error("Transport error:", error);
     shutdown().catch((err) => {
-      console.error("[mcp-echo-env] Error during shutdown:", err);
+      logger.error("Error during shutdown:", err);
       process.exit(1);
     });
   };
@@ -211,7 +250,7 @@ const isExecutedDirectly = (() => {
 
 if (isExecutedDirectly) {
   startServer().catch((error) => {
-    console.error("[mcp-echo-env] Fatal server error:", error);
+    logger.error("Fatal server error:", error);
     process.exit(1);
   });
 }
