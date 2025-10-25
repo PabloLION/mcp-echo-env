@@ -7,6 +7,12 @@ process. The canonical distribution is the published npm package
 [`mcp-server-echo-env`](https://www.npmjs.com/package/mcp-server-echo-env), and
 that page should be treated as the project homepage for end users.
 
+Project links:
+
+- Repository: <https://github.com/PabloLION/mcp-echo-env>
+- Issues / feedback: <https://github.com/PabloLION/mcp-echo-env/issues>
+- npm package: <https://www.npmjs.com/package/mcp-server-echo-env>
+
 For installation, local development, and distribution details see
 [`instructions.md`](instructions.md). The remainder of this README focuses on
 how to exercise the server when testing an MCP client or agent.
