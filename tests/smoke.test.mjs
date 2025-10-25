@@ -63,4 +63,8 @@ test("env_echo returns expected variables", async (t) => {
     projectRoot,
     `${JSON.stringify(structuredContent, null, 2)}\nLogs:\n${logs.join("")}`
   );
+  assert.deepEqual(
+    Object.keys(structuredContent.variables).sort(),
+    ["PWD", "WORKSPACE_SLUG"]
+  );
 });

@@ -2,7 +2,7 @@
 
 This repository provides an MCP server that simply echoes selected environment
 variables. It exists to verify that an MCP client propagates workspace context
-(`PWD`, `WORKSPACE_SLUG`, and any additional keys you request) into the server
+(`PWD` and `WORKSPACE_SLUG`) into the server
 process. The canonical distribution is the published npm package
 [`mcp-server-echo-env`](https://www.npmjs.com/package/mcp-server-echo-env), and
 that page should be treated as the project homepage for end users.
@@ -57,11 +57,8 @@ to clients on stdout.
 Echo environment variables back to the caller.
 
 - **Default behaviour:** returns `PWD` and `WORKSPACE_SLUG`.
-- **Arguments:**
-  - `keys` (string[]): list of variable names to read. When omitted, the
-    defaults are used.
-  - `omitNull` (boolean): drop variables that are unset instead of outputting
-    `null`.
+- **Arguments:** none. The tool intentionally ignores user-supplied keys so only
+  the workspace path and slug are ever exposed.
 
 The tool responds with both a formatted text block and structured JSON:
 
@@ -77,9 +74,8 @@ The tool responds with both a formatted text block and structured JSON:
 }
 ```
 
-The `variables` map mirrors exactly what was requested, while the lowercase
-aliases (`workspace_slug`, `pwd`) make the commonly inspected values easy to
-read.
+The `variables` map always contains just these two keys. Lowercase aliases
+(`workspace_slug`, `pwd`) make the commonly inspected values easy to read.
 
 ## MCP client capability check
 

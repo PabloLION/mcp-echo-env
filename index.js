@@ -30,27 +30,7 @@ function refreshLogLevel() {
   activeLogLevel = resolveLogLevel(process.env.MCP_ECHO_ENV_LOG_LEVEL);
 }
 
-const inputShape = {
-  keys: z
-    .array(
-      z
-        .string()
-        .min(
-          1,
-          "Environment variable names must be at least one character."
-        )
-        .describe("Name of an environment variable to echo.")
-    )
-    .nonempty()
-    .describe(
-      "List of environment variables to read. Defaults to PWD and WORKSPACE_SLUG."
-    )
-    .optional(),
-  omitNull: z
-    .boolean()
-    .describe("When true, variables with no value are excluded from the result.")
-    .optional(),
-};
+const inputShape = {};
 
 const outputShape = {
   tool: z.literal("env_echo"),
@@ -150,7 +130,7 @@ server.registerTool(
   {
     title: "Environment Variable Echo",
     description:
-      "Return the values of requested environment variables from the MCP server process.",
+      "Return the workspace path (PWD) and slug (WORKSPACE_SLUG) from the MCP server process.",
     inputSchema: inputShape,
     outputSchema: outputShape,
   },
@@ -175,17 +155,10 @@ server.registerTool(
         isError: true,
       };
     }
-    const { keys, omitNull = false } = parseResult.data;
-    logger.debug("env_echo invoked with args:", {
-      keys,
-      omitNull,
+    logger.debug("env_echo invoked", {
       sessionId: extra?.sessionId,
     });
-    const keysToUse = keys && keys.length > 0 ? keys : DEFAULT_KEYS;
-    const omitNulls = Boolean(omitNull);
-    const variables = collectEnvironmentVariables(keysToUse, {
-      omitNull: omitNulls,
-    });
+    const variables = collectEnvironmentVariables(DEFAULT_KEYS);
     const structuredContent = {
       tool: "env_echo",
       variables,
@@ -199,7 +172,7 @@ server.registerTool(
       null,
       2
     );
-    logger.debug("env_echo returning payload.");
+    logger.debug("env_echo returning workspace snapshot.");
     return {
       content: [
         {
