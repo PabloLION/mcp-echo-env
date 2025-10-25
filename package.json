@@ -1,6 +1,6 @@
 {
   "name": "mcp-echo-env",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Create a minimal MCP server example that demonstrates it can read and return environment variables (e.g., `PWD` or `WORKSPACE_SLUG`). This serves as a proof-of-concept for verifying that environment variables passed by an MCP client are accessible from within an MCP server.",
   "main": "index.js",
   "type": "module",
